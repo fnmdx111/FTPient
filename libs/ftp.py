@@ -41,6 +41,8 @@ class FTPClient(object):
         logging.basicConfig(level=logging.DEBUG)
         self._m_logger = logging.getLogger(__name__)
 
+        self.stop = False
+
 
     def connect(self):
         self._m_cmd_sock.connect((self._c_server_ip, self._c_server_port))
@@ -139,6 +141,10 @@ class FTPClient(object):
                         break
                     f.write(data)
                     callback(size, f.tell())
+                    if self.stop:
+                        break
+                else:
+                    self.stop = False
 
             conn.close()
             if not passive:
@@ -244,6 +250,10 @@ class FTPClient(object):
                 sent = conn.send(f.read(51200))
                 bytes_sent += sent
                 callback(length, bytes_sent)
+                if self.stop:
+                    break
+            else:
+                self.stop = False
 
             conn.close()
             if not passive:
@@ -337,6 +347,7 @@ class FTPClient(object):
         ret = codes, _ = self._ret()
         self._info(ret)
         if 226 not in codes:
+            print 'asdfasdfasdf'
             return False, []
 
         conn.close()

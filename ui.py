@@ -8,7 +8,7 @@ from PySide.QtCore import *
 
 from libs.ftp import FTPClient
 from libs.misc import LoggerHandler
-from libs.components import LoginDialog, FileModel
+from libs.components import LoginDialog, FileModel, WaitDialog
 
 
 class FTPClientPanel(QDialog, object):
@@ -45,6 +45,7 @@ class FTPClientPanel(QDialog, object):
 
         self.dialog_logger = QDialog(self)
         self.dialog_login = LoginDialog(self)
+        self.dialog_wait = WaitDialog(self)
 
         self.setup_layout()
         self.setup_logger()
@@ -83,6 +84,8 @@ class FTPClientPanel(QDialog, object):
                                                    u'下载至',
                                                    os.path.join('.', entry.name),
                                                    u'所有文件 (*.*)')
+        if not save_path:
+            return
 
         self.asynchronized_download(os.path.join(self.current_ftp_path,
                                                  entry.name),
@@ -94,6 +97,9 @@ class FTPClientPanel(QDialog, object):
                                               u'上传文件',
                                               '.',
                                               u'所有文件 (*.*)')
+        if not path:
+            return
+
         _, filename = os.path.split(path)
         self.asynchronized_upload(filename, path)
 
@@ -150,10 +156,10 @@ class FTPClientPanel(QDialog, object):
 
 
     def show_logger(self):
-        if self.dialog_logger.isVisible():
-            self.dialog_logger.hide()
+        if self.dialog_wait.isVisible():
+            self.dialog_wait.hide()
         else:
-            self.dialog_logger.show()
+            self.dialog_wait.show()
 
 
     def asynchronized_list(self, path):
@@ -165,17 +171,19 @@ class FTPClientPanel(QDialog, object):
 
         threading.Thread(target=_).start()
 
+    def callback(self, total, now):
+        self.dialog_wait.signal_update_progress.emit(
+            self.model.to_human_readable(now),
+            self.model.to_human_readable(total)
+        )
+        self.dialog_wait.signal_update_bar.emit(int(float(now) / total * 100))
+
 
     def asynchronized_download(self, path, target_path):
         def _():
-            def callback(total, now):
-                self.dialog_login.signal_change_label.emit(
-                    u'正在下载 %s/%s' % (
-                        self.model.to_human_readable(now),
-                        self.model.to_human_readable(total)
-                    ))
             self.signal_download_start.emit()
-            success = self.client.download(path, target_path, callback=callback)
+            self.dialog_wait.signal_change_label.emit(u'正在传输%s，请稍候' % path)
+            success = self.client.download(path, target_path, callback=self.callback)
             self.signal_download_end.emit(success)
 
         threading.Thread(target=_).start()
@@ -183,43 +191,43 @@ class FTPClientPanel(QDialog, object):
 
     def asynchronized_upload(self, path, target_path):
         def _():
-            def callback(total, now):
-                self.dialog_login.signal_change_label.emit(
-                    u'正在上传 %s/%s' % (
-                        self.model.to_human_readable(now),
-                        self.model.to_human_readable(total)
-                    ))
             self.signal_upload_start.emit()
-            success = self.client.upload(path, target_path, callback=callback)
+            self.dialog_wait.signal_change_label.emit(u'正在传输%s，请稍候' % path)
+            success = self.client.upload(path, target_path, callback=self.callback)
             self.signal_upload_end.emit(success)
 
         threading.Thread(target=_).start()
 
 
     def download_start(self):
-        self.dialog_login.change_label(u'正在下载，请稍候')
-        self.dialog_login.dialog_wait.show()
+        # self.dialog_wait.show()
+        pass
 
 
     def download_end(self, success):
-        self.dialog_login.dialog_wait.hide()
+        # self.dialog_login.dialog_wait.hide()
         if success:
-            QMessageBox.information(self, u'成功', u'下载成功', QMessageBox.Ok)
+            # QMessageBox.information(self, u'成功', u'下载成功', QMessageBox.Ok)
+            self.dialog_wait.signal_change_label.emit(u'传输成功')
         else:
-            QMessageBox.critical(self, u'错误', u'下载失败', QMessageBox.Ok)
+            # QMessageBox.critical(self, u'错误', u'下载失败', QMessageBox.Ok)
+            self.dialog_wait.signal_change_label.emit(u'传输失败')
 
 
     def upload_start(self):
-        self.dialog_login.change_label(u'正在上传，请稍候')
-        self.dialog_login.dialog_wait.show()
+        # self.dialog_login.change_label(u'正在上传，请稍候')
+        # self.dialog_login.dialog_wait.show()
+        pass
 
 
     def upload_end(self, success):
-        self.dialog_login.dialog_wait.hide()
+        # self.dialog_login.dialog_wait.hide()
         if success:
-            QMessageBox.information(self, u'成功', u'上传成功', QMessageBox.Ok)
+            # QMessageBox.information(self, u'成功', u'上传成功', QMessageBox.Ok)
+            self.dialog_wait.signal_change_label.emit(u'传输成功')
         else:
-            QMessageBox.critical(self, u'错误', u'上传失败', QMessageBox.Ok)
+            # QMessageBox.critical(self, u'错误', u'上传失败', QMessageBox.Ok)
+            self.dialog_wait.signal_change_label.emit(u'传输失败')
 
 
     def show_list(self, entries):

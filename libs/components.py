@@ -75,8 +75,11 @@ class LoginDialog(QDialog, object):
 
 
     def reset_client(self, server_ip):
-        self.parent().client.quit()
-        self.parent().client = FTPClient(server_ip)
+        try:
+            self.parent().client.quit()
+            self.parent().client = FTPClient(server_ip)
+        except socket.error as e:
+            pass
 
 
     def show_msg_box(self, title, msg):
@@ -235,3 +238,51 @@ class FileModel(QAbstractTableModel):
         else:
             human_readable_size = '%.2f B' % size_f
         return human_readable_size
+
+
+
+class WaitDialog(QDialog, object):
+
+    signal_change_label = Signal(str)
+    signal_update_progress = Signal(str, str)
+    signal_update_bar = Signal(int)
+    def __init__(self, parent):
+        super(WaitDialog, self).__init__(parent)
+
+        self.setMaximumSize(400, 200)
+        self.setWindowTitle(u'正在传输')
+
+        label = QLabel()
+        label_progress = QLabel()
+        self.progress_bar = QProgressBar()
+
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+
+        button_stop = QPushButton(u'停止')
+        def _():
+            parent.client.stop = True
+        button_stop.clicked.connect(_)
+
+        button_close = QPushButton(u'关闭')
+        button_close.clicked.connect(self.hide)
+
+        _1 = QHBoxLayout()
+        _1.addWidget(button_stop)
+        _1.addWidget(button_close)
+        layout = QVBoxLayout()
+        layout.addWidget(label)
+        layout.addWidget(label_progress)
+        layout.addWidget(self.progress_bar)
+        layout.addLayout(_1)
+
+        self.setLayout(layout)
+
+        self.signal_change_label.connect(
+            lambda text: label.setText('<b><center>%s</center></b>' % text)
+        )
+        self.signal_update_progress.connect(
+            lambda s1, s2: label_progress.setText('<center>%s / %s</center>' % (s1, s2))
+        )
+        self.signal_update_bar.connect(lambda p: self.progress_bar.setValue(p))
+
